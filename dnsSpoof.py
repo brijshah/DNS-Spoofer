@@ -20,12 +20,8 @@
 
 import ConfigParser, os, platform, sys, signal, multiprocessing, logging, time, argparse, arpSpoof
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
-import time
-import argparse
-import scapy
 from scapy.all import *
 from scapy.layers.dns import DNSRR, DNS, DNSQR
-import arpSpoof, scan
 
 operatingSystem = platform.system()
 variables = 0
