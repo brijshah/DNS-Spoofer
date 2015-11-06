@@ -12,7 +12,9 @@
 #-- PROGRAMMERS:    Brij Shah, Callum Styan
 #--
 #-- NOTES:
-#--
+#-- arpSpoof sends out spoofed ARP packets to the victim machine and the router
+#-- every two seconds. arpSpoof should be run in its own process and remotely
+#-- killed if necessary.
 #-----------------------------------------------------------------------------
 import sys, logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
@@ -29,7 +31,10 @@ from time import sleep
 #--                 ourMAC - the current machines MAC address
 #--
 #-- NOTES:
-#--
+#-- arpSpoof creates two packets, one for the victim machine and one for the
+#-- router with the specified values. It then sends out the packets 
+#-- continuously every two seconds to ARP poison the victim and initiate a 
+#-- 'man-in-the-middle'.
 #-----------------------------------------------------------------------------
 def arpSpoof(routerIP, routerMAC, victimIP, victimMAC, ourMAC):
     arpPacketVictim = Ether(src=ourMAC
